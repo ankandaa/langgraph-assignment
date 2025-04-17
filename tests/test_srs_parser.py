@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import Mock, patch
 import json
-from src.nodes.srs_parser import SRSParserNode
+from src.nodes.srs_parser import analyze_requirements, process_docx, srs_parser
 
 @pytest.fixture
 def sample_srs_content():
@@ -52,8 +52,7 @@ async def test_analyze_requirements(sample_srs_content, mock_groq_response):
     with patch('groq.Groq') as MockGroq:
         MockGroq.return_value.chat.completions.create.return_value = mock_groq_response
         
-        node = SRSParserNode()
-        result = await node.analyze_requirements(sample_srs_content)
+        result = await analyze_requirements(sample_srs_content)
         
         # Verify structure of parsed requirements
         parsed = json.loads(result)
@@ -79,36 +78,29 @@ async def test_process_docx():
         ]
         MockDocument.return_value = mock_doc
         
-        node = SRSParserNode()
-        content = node.process_docx("test.docx")
+        content = process_docx("test.docx")
         
         assert "API Endpoints:" in content
         assert "POST /users" in content
 
 @pytest.mark.asyncio
-async def test_run_success(sample_srs_content, mock_groq_response):
-    """Test successful execution of the node."""
+async def test_srs_parser_success(sample_srs_content, mock_groq_response):
+    """Test successful execution of the parser."""
     with patch('groq.Groq') as MockGroq:
         MockGroq.return_value.chat.completions.create.return_value = mock_groq_response
         
-        node = SRSParserNode()
         state = {"srs_content": sample_srs_content, "logs": [], "errors": []}
+        new_state = await srs_parser(state)
         
-        new_state, next_node = await node.run(state)
-        
-        assert next_node == "project_initializer"
-        assert len(new_state["logs"]) > 0
         assert "requirements" in new_state
+        assert len(new_state["logs"]) > 0
         assert len(new_state["errors"]) == 0
 
 @pytest.mark.asyncio
-async def test_run_error():
-    """Test error handling in the node."""
-    node = SRSParserNode()
+async def test_srs_parser_error():
+    """Test error handling in the parser."""
     state = {"srs_content": "", "logs": [], "errors": []}
+    new_state = await srs_parser(state)
     
-    new_state, next_node = await node.run(state)
-    
-    assert next_node == "error_handler"
     assert len(new_state["errors"]) > 0
     assert "SRS parsing error" in new_state["errors"][0]
