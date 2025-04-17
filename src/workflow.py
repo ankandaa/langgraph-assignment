@@ -30,7 +30,7 @@ def create_workflow() -> StateGraph:
 
     # Define nodes
     srs_parser_node = srs_parser
-    project_initializer_node = ProjectInitializerNode()
+    project_initializer_node = ProjectInitializerNode().run
 
     # Add nodes to the graph
     workflow.add_node("srs_parser", srs_parser_node)

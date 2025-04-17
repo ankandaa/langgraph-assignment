@@ -1,9 +1,9 @@
 import os
 import subprocess
 from typing import Dict, Any, Tuple
-from langgraph.graph import Node
+from langchain_core.runnables import Runnable
 
-class ProjectInitializerNode(Node):
+class ProjectInitializerNode:
     """Node for initializing the FastAPI project structure."""
 
     async def create_project_structure(self, requirements: Dict[str, Any]) -> None:
