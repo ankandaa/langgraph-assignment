@@ -6,7 +6,7 @@ from docx import Document
 import json
 
 # Constants
-LLAMA_MODEL = "llama2-70b"  # Groq's model identifier for LLaMA 2 70B
+MODEL_NAME = "mixtral-8x7b-32768"  # Using Mixtral model on Groq
 
 def get_groq_client():
     """Get or initialize Groq client."""
@@ -41,7 +41,7 @@ async def analyze_requirements(content: str) -> str:
     Ensure the response is valid JSON that can be parsed."""
     
     response = get_groq_client().chat.completions.create(
-        model=LLAMA_MODEL,
+        model=MODEL_NAME,
         messages=[{
             "role": "user",
             "content": prompt
