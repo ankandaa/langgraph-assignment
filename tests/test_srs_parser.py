@@ -42,8 +42,10 @@ def mock_groq_response():
 @pytest.mark.asyncio
 async def test_analyze_requirements(sample_srs_content, mock_groq_response):
     """Test that SRS content is properly analyzed."""
-    with patch('groq.Groq') as MockGroq:
-        MockGroq.return_value.chat.completions.create.return_value = mock_groq_response
+    with patch('src.nodes.srs_parser.get_groq_client') as mock_get_client:
+        mock_client = Mock()
+        mock_client.chat.completions.create.return_value = mock_groq_response
+        mock_get_client.return_value = mock_client
         
         result = await analyze_requirements(sample_srs_content)
         
@@ -71,8 +73,10 @@ async def test_process_docx():
 @pytest.mark.asyncio
 async def test_srs_parser_success(sample_srs_content, mock_groq_response):
     """Test successful execution of the parser."""
-    with patch('groq.Groq') as MockGroq:
-        MockGroq.return_value.chat.completions.create.return_value = mock_groq_response
+    with patch('src.nodes.srs_parser.get_groq_client') as mock_get_client:
+        mock_client = Mock()
+        mock_client.chat.completions.create.return_value = mock_groq_response
+        mock_get_client.return_value = mock_client
         
         state = {"srs_content": "tests/test.docx", "logs": [], "errors": []}
         new_state = await srs_parser(state)

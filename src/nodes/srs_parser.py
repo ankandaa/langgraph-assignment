@@ -5,9 +5,15 @@ import os
 from docx import Document
 import json
 
-# Initialize Groq client for LLaMA 3 70B
-groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+# Constants
 LLAMA_3_70B = "llama2-70b-4096"
+
+def get_groq_client():
+    """Get or initialize Groq client."""
+    api_key = os.getenv("GROQ_API_KEY")
+    if not api_key:
+        raise ValueError("GROQ_API_KEY environment variable must be set")
+    return Groq(api_key=api_key)
 
 def process_docx(file_path: str) -> str:
     """Extract text content from .docx file."""
@@ -34,7 +40,7 @@ async def analyze_requirements(content: str) -> str:
     
     Ensure the response is valid JSON that can be parsed."""
     
-    response = groq_client.chat.completions.create(
+    response = get_groq_client().chat.completions.create(
         model=LLAMA_3_70B,
         messages=[{
             "role": "user",
