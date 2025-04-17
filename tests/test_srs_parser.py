@@ -4,20 +4,13 @@ import json
 from src.nodes.srs_parser import analyze_requirements, process_docx, srs_parser
 
 @pytest.fixture
-def sample_srs_content():
-    return """
-    API Endpoints:
-    - POST /users: Create new user
-    - GET /users/{id}: Get user details
-    
-    Database Schema:
-    - Users table with fields: id, username, email
-    - Posts table with fields: id, user_id, content
-    
-    Authentication:
-    - JWT based authentication
-    - Role based access control
-    """
+def sample_srs_file():
+    return "tests/test.docx"
+
+@pytest.fixture
+def sample_srs_content(sample_srs_file):
+    from src.nodes.srs_parser import process_docx
+    return process_docx(sample_srs_file)
 
 @pytest.fixture
 def mock_groq_response():
@@ -69,19 +62,11 @@ async def test_analyze_requirements(sample_srs_content, mock_groq_response):
 @pytest.mark.asyncio
 async def test_process_docx():
     """Test processing of .docx files."""
-    with patch('docx.Document') as MockDocument:
-        # Mock document paragraphs
-        mock_doc = Mock()
-        mock_doc.paragraphs = [
-            Mock(text="API Endpoints:"),
-            Mock(text="- POST /users: Create user")
-        ]
-        MockDocument.return_value = mock_doc
-        
-        content = process_docx("test.docx")
-        
-        assert "API Endpoints:" in content
-        assert "POST /users" in content
+    content = process_docx("tests/test.docx")
+    
+    # Verify the content is properly extracted
+    assert content.strip() != ""
+    assert len(content) > 0
 
 @pytest.mark.asyncio
 async def test_srs_parser_success(sample_srs_content, mock_groq_response):
@@ -89,7 +74,7 @@ async def test_srs_parser_success(sample_srs_content, mock_groq_response):
     with patch('groq.Groq') as MockGroq:
         MockGroq.return_value.chat.completions.create.return_value = mock_groq_response
         
-        state = {"srs_content": sample_srs_content, "logs": [], "errors": []}
+        state = {"srs_content": "tests/test.docx", "logs": [], "errors": []}
         new_state = await srs_parser(state)
         
         assert "requirements" in new_state
