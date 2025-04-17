@@ -2,7 +2,10 @@ import pytest
 import os
 import shutil
 from unittest.mock import Mock, patch
+import os
 from src.nodes.project_initializer import ProjectInitializerNode
+
+os.environ["LANGCHAIN_API_KEY"] = "test_key"
 
 @pytest.fixture
 def project_initializer():
