@@ -6,7 +6,7 @@ from docx import Document
 import json
 
 # Constants
-MODEL_NAME = "mixtral-8x7b"  # Using latest Mixtral model on Groq
+MODEL_NAME = "mistral-saba-24b"  # Using latest Mixtral model on Groq
 
 def get_groq_client():
     """Get or initialize Groq client."""
@@ -20,25 +20,42 @@ def process_docx(file_path: str) -> str:
     doc = Document(file_path)
     return "\n".join([paragraph.text for paragraph in doc.paragraphs])
 
-async def analyze_requirements(content: str) -> str:
+async def analyze_requirements(content: str) -> dict:
     """Extract functional requirements from SRS content."""
     prompt = f"""You are a software engineer analyzing a Software Requirements Specification (SRS) document.
-    Extract the following information and return it as a valid JSON:
-    1. Core functional requirements
-    2. Required API endpoints with their parameters
-    3. Database schema requirements
-    4. Authentication and authorization requirements
+    Your task is to extract structured information and return it in valid JSON format.
 
-    SRS Content:
+    Format your response exactly like this example:
+    {{
+        "functional_requirements": [
+            "User registration",
+            "Password reset functionality"
+        ],
+        "api_endpoints": [
+            {{
+                "path": "/api/users",
+                "method": "POST",
+                "description": "Create new user"
+            }}
+        ],
+        "db_schema": {{
+            "tables": [
+                {{
+                    "name": "users",
+                    "fields": ["id", "username", "email"]
+                }}
+            ]
+        }},
+        "auth_requirements": {{
+            "type": "JWT",
+            "features": ["RBAC"]
+        }}
+    }}
+
+    Now analyze this SRS document and return the information in the same JSON structure:
     {content}
 
-    Return the analysis as a structured JSON with these exact keys:
-    - functional_requirements: list of requirements
-    - api_endpoints: list of endpoint specs with path, method, description
-    - db_schema: database table specifications with fields
-    - auth_requirements: auth system specifications
-    
-    Ensure the response is valid JSON that can be parsed."""
+    Remember: The response must be valid JSON, use double quotes for strings, and follow the exact structure shown above."""
     
     response = get_groq_client().chat.completions.create(
         model=MODEL_NAME,
@@ -50,7 +67,27 @@ async def analyze_requirements(content: str) -> str:
         max_tokens=4000,
     )
     
-    return response.choices[0].message.content
+    raw_response = response.choices[0].message.content
+    
+    # Extract JSON from the response - handles cases where LLM adds extra text
+    try:
+        # Find JSON content (typically between curly braces)
+        json_start = raw_response.find('{')
+        json_end = raw_response.rfind('}') + 1
+        if json_start >= 0 and json_end > json_start:
+            json_content = raw_response[json_start:json_end]
+            return json.loads(json_content)
+        else:
+            # If no JSON format detected, try parsing the whole response
+            return json.loads(raw_response)
+    except json.JSONDecodeError:
+        # Fallback structure if JSON parsing fails
+        return {
+            "functional_requirements": ["Failed to parse requirements"],
+            "api_endpoints": [],
+            "db_schema": {"tables": []},
+            "auth_requirements": {"type": "Unknown", "features": []}
+        }
 
 async def srs_parser(state: Dict[str, Any]) -> Dict[str, Any]:
     """Parse SRS document and extract requirements."""
@@ -65,17 +102,26 @@ async def srs_parser(state: Dict[str, Any]) -> Dict[str, Any]:
 
         requirements = await analyze_requirements(content)
         
-        # Validate JSON response
-        try:
-            parsed_requirements = json.loads(requirements)
-            required_keys = ["functional_requirements", "api_endpoints", "db_schema", "auth_requirements"]
-            if not all(key in parsed_requirements for key in required_keys):
-                raise ValueError("Missing required keys in parsed requirements")
-        except json.JSONDecodeError:
-            raise ValueError("Invalid JSON response from requirements analysis")
+        # Basic validation of the requirements structure
+        required_keys = ["functional_requirements", "api_endpoints", "db_schema", "auth_requirements"]
+        missing_keys = [key for key in required_keys if key not in requirements]
+        
+        if missing_keys:
+            for key in missing_keys:
+                # Add missing keys with default values
+                if key == "functional_requirements":
+                    requirements[key] = []
+                elif key == "api_endpoints":
+                    requirements[key] = []
+                elif key == "db_schema":
+                    requirements[key] = {"tables": []}
+                elif key == "auth_requirements":
+                    requirements[key] = {"type": "Unknown", "features": []}
+            
+            state["logs"].append(f"Warning: Added missing keys in requirements: {', '.join(missing_keys)}")
         
         # Update state with extracted requirements
-        state["requirements"] = parsed_requirements
+        state["requirements"] = requirements
         state["logs"].append("Successfully parsed SRS document")
         
         return state

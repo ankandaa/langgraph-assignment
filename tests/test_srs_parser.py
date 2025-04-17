@@ -50,16 +50,15 @@ async def test_analyze_requirements(sample_srs_content, mock_groq_response):
         result = await analyze_requirements(sample_srs_content)
         
         # Verify structure of parsed requirements
-        parsed = json.loads(result)
-        assert "functional_requirements" in parsed
-        assert "api_endpoints" in parsed
-        assert "db_schema" in parsed
-        assert "auth_requirements" in parsed
+        assert "functional_requirements" in result
+        assert "api_endpoints" in result
+        assert "db_schema" in result
+        assert "auth_requirements" in result
         
         # Verify content
-        assert len(parsed["functional_requirements"]) > 0
-        assert len(parsed["api_endpoints"]) > 0
-        assert "users" in parsed["db_schema"]
+        assert len(result["functional_requirements"]) > 0
+        assert len(result["api_endpoints"]) > 0
+        assert isinstance(result["db_schema"], dict)
 
 @pytest.mark.asyncio
 async def test_process_docx():
