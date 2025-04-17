@@ -2,16 +2,30 @@ import pytest
 import os
 import shutil
 from unittest.mock import Mock, patch
-import os
+from dotenv import load_dotenv
 from src.nodes.project_initializer import ProjectInitializerNode
 
-os.environ["LANGCHAIN_API_KEY"] = "test_key"
+# Load environment variables from .env file if it exists
+load_dotenv()
 
-@pytest.fixture
+# Define test environment variables
+TEST_ENV_VARS = {
+    "LANGCHAIN_API_KEY": "test_key",
+    "LANGCHAIN_TRACING_V2": "true",
+    "LANGCHAIN_ENDPOINT": "https://api.smith.langchain.com"
+}
+
+@pytest.fixture(autouse=True)
+def setup_test_env(monkeypatch):
+    """Automatically set up test environment variables for all tests"""
+    for key, value in TEST_ENV_VARS.items():
+        monkeypatch.setenv(key, value)
+
+@pytest.fixture()
 def project_initializer():
     return ProjectInitializerNode()
 
-@pytest.fixture
+@pytest.fixture()
 def sample_requirements():
     return {
         "endpoints": ["/api/users", "/api/items"],
@@ -20,7 +34,7 @@ def sample_requirements():
         "auth": "JWT"
     }
 
-@pytest.fixture
+@pytest.fixture()
 def cleanup_project():
     """Fixture to clean up the generated project after the test."""
     project_name = "generated_api"

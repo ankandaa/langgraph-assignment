@@ -2,13 +2,23 @@ from typing import Dict, Any
 from langgraph.graph import StateGraph, Graph
 from langsmith import Client
 import os
-from src.nodes.srs_parser import srs_parser
-from src.nodes.project_initializer import ProjectInitializerNode
+from dotenv import load_dotenv
 
-# Initialize LangSmith client for logging
-os.environ["LANGCHAIN_TRACING_V2"] = "true"
-os.environ["LANGCHAIN_ENDPOINT"] = "https://api.smith.langchain.com"
-os.environ["LANGCHAIN_API_KEY"] = os.getenv("LANGCHAIN_API_KEY")
+load_dotenv()
+
+# Safely get environment variables with default values
+LANGCHAIN_API_KEY = os.getenv("LANGCHAIN_API_KEY", "")
+LANGCHAIN_TRACING_V2 = os.getenv("LANGCHAIN_TRACING_V2", "false")
+LANGCHAIN_ENDPOINT = os.getenv("LANGCHAIN_ENDPOINT", "")
+
+# Only set non-empty environment variables
+if LANGCHAIN_API_KEY:
+    os.environ["LANGCHAIN_API_KEY"] = LANGCHAIN_API_KEY
+if LANGCHAIN_TRACING_V2:
+    os.environ["LANGCHAIN_TRACING_V2"] = LANGCHAIN_TRACING_V2
+if LANGCHAIN_ENDPOINT:
+    os.environ["LANGCHAIN_ENDPOINT"] = LANGCHAIN_ENDPOINT
+
 langsmith_client = Client()
 
 class GraphState:

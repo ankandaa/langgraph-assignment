@@ -2,9 +2,19 @@ import os
 import subprocess
 from typing import Dict, Any, Tuple
 from langchain_core.runnables import Runnable
+import langchain
+from langsmith import Client
 
 class ProjectInitializerNode:
     """Node for initializing the FastAPI project structure."""
+
+    def __init__(self):
+        # Initialize LangSmith client for logging
+        self.langchain_api_key = os.getenv("LANGCHAIN_API_KEY")
+        os.environ["LANGCHAIN_TRACING_V2"] = "true"
+        os.environ["LANGCHAIN_ENDPOINT"] = "https://api.smith.langchain.com"
+        os.environ["LANGCHAIN_API_KEY"] = self.langchain_api_key
+        self.langsmith_client = Client()
 
     async def create_project_structure(self, requirements: Dict[str, Any]) -> None:
         """Creates the basic folder structure for the FastAPI project."""
