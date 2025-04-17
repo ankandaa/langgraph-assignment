@@ -6,7 +6,7 @@ from docx import Document
 import json
 
 # Constants
-MODEL_NAME = "mixtral-8x7b-32768"  # Using Mixtral model on Groq
+MODEL_NAME = "mixtral-8x7b"  # Using latest Mixtral model on Groq
 
 def get_groq_client():
     """Get or initialize Groq client."""
