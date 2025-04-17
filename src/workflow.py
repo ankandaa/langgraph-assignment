@@ -1,9 +1,9 @@
 from typing import Dict, Any
-from langgraph.graph import Graph, StateGraph
-from langgraph.prebuilt import GroqWrapper
-from langchain.prompts import PromptTemplate
+from langgraph.graph import StateGraph, Graph
 from langsmith import Client
 import os
+from src.nodes.srs_parser import srs_parser
+from src.nodes.project_initializer import ProjectInitializerNode
 
 # Initialize LangSmith client for logging
 os.environ["LANGCHAIN_TRACING_V2"] = "true"
@@ -27,14 +27,25 @@ def create_workflow() -> StateGraph:
     """Create the LangGraph workflow for FastAPI project generation."""
     
     workflow = StateGraph(GraphState)
-    
-    # Define nodes here
-    # TODO: Add SRS_Parser_Node, Project_Initializer_Node, Test_Generator_Node, etc.
-    
-    # Configure the workflow edges
-    # TODO: Add edges between nodes to define the workflow
-    
-    # Compile the graph
+
+    # Define nodes
+    srs_parser_node = srs_parser
+    project_initializer_node = ProjectInitializerNode()
+
+    # Add nodes to the graph
+    workflow.add_node("srs_parser", srs_parser_node)
+    workflow.add_node("project_initializer", project_initializer_node)
+    workflow.add_node("error_handler", lambda state: state)  # Placeholder error handler
+
+    # Configure edges
+    workflow.set_entry_point("srs_parser")
+
+    workflow.add_edge("srs_parser", "project_initializer")
+    workflow.add_edge("project_initializer", "error_handler")
+    workflow.add_edge("srs_parser", "error_handler", condition=lambda state: len(state["errors"]) > 0)
+    workflow.add_edge("project_initializer", "test_generator")
+
+    # Compile
     workflow.compile()
     
     return workflow
