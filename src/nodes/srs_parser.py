@@ -1,9 +1,11 @@
-from typing import Dict, Any, Annotated, Callable
+from typing import Dict, Any, Annotated, Callable, Tuple, List
 from langgraph.graph import MessageGraph, StateGraph
 from groq import Groq
 import os
 from docx import Document
 import json
+import re
+from langsmith import Client
 
 # Constants
 MODEL_NAME = "mistral-saba-24b"  # Using latest Mixtral model on Groq
@@ -130,3 +132,123 @@ async def srs_parser(state: Dict[str, Any]) -> Dict[str, Any]:
         state["errors"].append(f"SRS parsing error: {str(e)}")
         state["logs"].append(f"Error in SRS parsing: {str(e)}")
         return state
+
+class SRSParserNode:
+    """Node for parsing Software Requirements Specification documents."""
+
+    def __init__(self):
+        self.langsmith_client = Client()
+
+    async def extract_requirements(self, doc_path: str) -> Dict[str, Any]:
+        """Extract requirements from a Word document."""
+        try:
+            doc = docx.Document(doc_path)
+            
+            # Initialize requirements dictionary
+            requirements = {
+                "endpoints": [],
+                "models": [],
+                "auth": {},
+                "features": []
+            }
+            
+            # Extract API endpoints using regex patterns
+            endpoint_pattern = re.compile(r'/api/\w+(?:/\w+)*')
+            
+            # Extract data models - typically CamelCase words followed by "model"
+            model_pattern = re.compile(r'([A-Z][a-z0-9]+)+(?:\s+[Mm]odel)')
+            
+            # Extract features - use bullet points or numbered lists
+            feature_pattern = re.compile(r'(?:•|\d+\.)\s+(.+?)(?=(?:•|\d+\.)|$)', re.DOTALL)
+            
+            # Process each paragraph in the document
+            for para in doc.paragraphs:
+                text = para.text.strip()
+                
+                # Extract endpoints
+                for endpoint in endpoint_pattern.findall(text):
+                    if endpoint not in requirements["endpoints"]:
+                        requirements["endpoints"].append(endpoint)
+                
+                # Extract models
+                for model_match in model_pattern.finditer(text):
+                    model_name = model_match.group().split()[0]  # Get just the model name
+                    if model_name not in requirements["models"]:
+                        requirements["models"].append(model_name)
+                
+                # Extract features
+                for feature_match in feature_pattern.finditer(text):
+                    feature = feature_match.group(1).strip()
+                    if feature and feature not in requirements["features"]:
+                        requirements["features"].append(feature)
+                
+                # Check for authentication information
+                if "authentication" in text.lower() or "auth" in text.lower():
+                    # Very basic extraction
+                    if "jwt" in text.lower() or "token" in text.lower():
+                        requirements["auth"]["type"] = "JWT"
+                    elif "oauth" in text.lower():
+                        requirements["auth"]["type"] = "OAuth"
+                    elif "basic" in text.lower():
+                        requirements["auth"]["type"] = "Basic"
+                    
+                    # Try to extract expiry time if mentioned
+                    expiry_match = re.search(r'(\d+)\s*(?:second|minute|hour|day)', text.lower())
+                    if expiry_match:
+                        time_value = int(expiry_match.group(1))
+                        time_unit = expiry_match.group(2)
+                        
+                        # Convert to seconds
+                        if "minute" in time_unit:
+                            time_value *= 60
+                        elif "hour" in time_unit:
+                            time_value *= 3600
+                        elif "day" in time_unit:
+                            time_value *= 86400
+                            
+                        requirements["auth"]["expiry"] = time_value
+            
+            return requirements
+            
+        except Exception as e:
+            raise Exception(f"Error extracting requirements: {e}")
+
+    async def run(self, state: Dict[str, Any]) -> Tuple[Dict[str, Any], str]:
+        """Run the SRS parser node."""
+        try:
+            # Create a LangSmith run
+            run = self.langsmith_client.create_run(
+                "srs_parser_run",
+                inputs={"srs_path": state.get("srs_path")}
+            )
+            
+            # Extract requirements from the document
+            requirements = await self.extract_requirements(state.get("srs_path"))
+            
+            # Update state with extracted requirements
+            state["requirements"] = requirements
+            state["logs"].append("Successfully parsed SRS document and extracted requirements")
+            
+            # Update LangSmith run with success status
+            self.langsmith_client.update_run(
+                run.id,
+                outputs={"status": "success", "requirements": requirements}
+            )
+            
+            # Return updated state and next node
+            return state, "test_generator"
+            
+        except Exception as e:
+            # Handle errors
+            error_msg = f"Error parsing SRS document: {e}"
+            state["errors"].append(error_msg)
+            state["logs"].append("Failed to parse SRS document")
+            
+            # Log error to LangSmith
+            self.langsmith_client.update_run(
+                run_id="srs_parser_run",
+                error=str(e)
+            )
+            
+            # Return error state
+            return state, "error_handler"
